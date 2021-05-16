@@ -1,25 +1,16 @@
 # This file performs a Google search for keywords found in the keywords.txt and builds a database for the found
 # documents
 import datetime
-import os
 import sys
 import time
 
 import requests
 from bs4 import BeautifulSoup
 from googleScrapy import Google
-from pymongo import MongoClient
 from requests import Response
-from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="./.env")
-
-mongo_url = os.getenv('MONGO_URL')
-keyword_filename = os.getenv('KEYWORD_FILE')
-
-client = MongoClient(mongo_url)
-database = client.get_database('nlp-keyword-search')
-collection = database.get_collection('docs')
+from keywords import keywords
+from database import collection
 
 
 class WebPage:
@@ -84,13 +75,7 @@ def google_search(text: str) -> list:
     return pages
 
 
-application_list = []
-with open(keyword_filename, 'r') as f:
-    for line in f.readlines():
-        if len(line.strip()) > 3:
-            application_list.append(line.strip())
-
-for keyword in application_list:
+for keyword in keywords:
     try:
         search_results = google_search(keyword)
 
