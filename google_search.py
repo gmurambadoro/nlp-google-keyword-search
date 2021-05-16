@@ -3,6 +3,7 @@
 import datetime
 import os
 import sys
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -64,18 +65,21 @@ def google_search(text: str) -> list:
         sys.exit(1)
 
     for url in search['links']:
-        print(f"Scraping for {text} @ {url} ...")
+        try:
+            print(f"Scraping for {text} @ {url} ...")
 
-        # go to this page and scape for information
-        response: Response = requests.get(url)
+            # go to this page and scape for information
+            response: Response = requests.get(url)
 
-        if response.status_code != 200:
-            print(f"Ign: Invalid response code of {response.status_code} returned")
-            continue
+            if response.status_code != 200:
+                print(f"Ign: Invalid response code of {response.status_code} returned")
+                continue
 
-        bs = BeautifulSoup(response.text, features="html.parser")
+            bs = BeautifulSoup(response.text, features="html.parser")
 
-        pages.append(WebPage(bs, url))
+            pages.append(WebPage(bs, url))
+        except ConnectionError as error:
+            print(f'E: Connection error - {error}')
 
     return pages
 
@@ -87,27 +91,31 @@ with open(keyword_filename, 'r') as f:
             application_list.append(line.strip())
 
 for keyword in application_list:
-    search_results = google_search(keyword)
+    try:
+        search_results = google_search(keyword)
 
-    page: WebPage
-    for page in search_results:
-        # find this document in the database
-        document = dict()
-        document['keyword'] = keyword
-        document['title'] = page.title()
-        document['url'] = page.url()
-        document['description'] = page.description()
-        document['full_text'] = page.body_text()
+        page: WebPage
+        for page in search_results:
+            document = dict()
+            document['keyword'] = keyword
+            document['title'] = page.title()
+            document['url'] = page.url()
+            document['description'] = page.description()
+            document['full_text'] = page.body_text()
 
-        if collection.find_one({"url": page.url(), "keyword": keyword}):
-            print(f"Ign: Already searched for {keyword} @ {page.url()}")
-            continue
+            # find this document in the database
+            if collection.find_one({"url": page.url(), "keyword": keyword}):
+                print(f"Ign: Already searched for {keyword} @ {page.url()}")
+                continue
 
-        document['created_at'] = datetime.datetime.now()
+            document['created_at'] = datetime.datetime.now()
 
-        result = collection.insert_one(document)
+            result = collection.insert_one(document)
 
-        if result:
-            print(f'OK: Successfully inserted document {keyword} @ {document["url"]}')
-        else:
-            print(f'E: Failed to insert document {keyword} @ {document["url"]}')
+            if result:
+                print(f'OK: Successfully inserted document {keyword} from {document["url"]}')
+            else:
+                print(f'E: Failed to insert document {keyword} from {document["url"]}')
+    except Exception as e:
+        print(f'E: Critical error encountered - {e}')
+        time.sleep(5)
